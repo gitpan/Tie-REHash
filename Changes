@@ -1,0 +1,8 @@
+Revision history for Perl extension Tie::REHash.
+
+0.01  2007
+	- original prototype (Big Bang) version. It was created for and long time battle tested as part of various applications. The general idea and hash interface were similar. It had test suit and documentation.
+
+1.00  December 2010
+	- first version released to CPAN. It is the complete redesign of both hash interface and implementation, as well as tests and documentation rewrite. 
+

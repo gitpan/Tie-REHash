@@ -1,0 +1,184 @@
+
+# Before `make install' is performed this script should be runnable with
+# `make test'. After `make install' it should work as `perl Tie-REHash.t'
+
+use strict;
+
+use Test::More tests => 112;
+BEGIN { $^W = 0; } 
+
+BEGIN { use_ok('Tie::REHash') };
+
+{
+package Tie::REHash::StringrefBug;
+sub TIEHASH { bless {}, $_[0] }
+sub STORE { ref $_[1] }
+sub FETCH { ref $_[1] }
+}
+tie my %detector, 'Tie::REHash::StringrefBug';
+( $detector{\'foo'} = 1 ) eq 'SCALAR'
+and $detector{\'foo'} eq 'SCALAR'
+#$] >= 5.012 
+or diag('BUG WARNING! Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"}, or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.');
+
+tie my %hash, 'Tie::REHash';
+
+is((tied %hash)->autodelete_limit, undef);
+
+tie %hash, (tied %hash); # re-tie()ing test
+tie %hash, (tied %hash); # re-tie()ing test
+
+ok(!%hash); # initially hash is empty 
+is($hash{hash} = 'associative array','associative array');
+is($hash{hash}, 'associative array');
+ok(exists $hash{hash}); 
+ok(scalar %hash); 
+is($hash{hash} = 'vocabulary', 'vocabulary'); 
+is($hash{hash}, 'vocabulary'); 
+my $ref2hash_element = \$hash{hash}; 
+$$ref2hash_element = 'map'; 
+is($hash{hash}, 'map'); 
+like(scalar(%hash), qr{\d+/\d+}, 'Standard hash: buckets allocated in scalar context')
+or diag('scalar %hash:' . scalar(%hash));
+is(delete $hash{hash}, 'map'); 
+ok(!exists $hash{hash}); 
+ok(!%hash);
+
+is($hash{qr{car|automobile}} = 'vehicle on wheels','vehicle on wheels');
+ok(scalar %hash) 
+or diag('scalar %hash:' . scalar(%hash));
+
+is($hash{car}, 'vehicle on wheels');
+is($hash{automobile}, 'vehicle on wheels');
+is($hash{qr{car|automobile}}, 'vehicle on wheels');
+ok(exists $hash{car});
+ok(exists $hash{automobile});
+ok(exists $hash{qr{car|automobile}});
+
+is( delete $hash{car}, 'vehicle on wheels'); 
+ok(!exists $hash{car}); 
+ok(!defined $hash{car});
+is( $hash{automobile} = 'not a luxury' , 'not a luxury'); 
+is( $hash{automobile}, 'not a luxury'); 
+ok( exists $hash{automobile}); 
+
+is( $hash{miss}, undef); 
+ok(!exists $hash{miss}); 
+
+ok( exists $hash{qr{car|automobile}}); 
+is( $hash{qr{car|automobile}}, 'vehicle on wheels'); 
+
+is($hash{qr{car|truck}} = 'automobile on wheels', 'automobile on wheels');
+is($hash{qr{car|truck}}, 'automobile on wheels'); 
+ok( exists $hash{car}); 
+is( $hash{car}, 'automobile on wheels'); 
+ok( exists $hash{truck});
+is( $hash{truck}, 'automobile on wheels');
+
+ok( exists $hash{qr{car|automobile}}); 
+is( $hash{qr{car|automobile}}, 'vehicle on wheels'); 
+is( delete $hash{qr{car|automobile}}, 'vehicle on wheels');
+ok(!exists $hash{qr{car|automobile}}); 
+ok(!defined $hash{qr{car|automobile}}); 
+
+ok(!exists $hash{car}); 
+ok(!defined $hash{car}); 
+ok(!exists $hash{automobile}); 
+ok(!defined $hash{automobile}); 
+
+ok( exists $hash{truck});
+is( $hash{truck}, 'automobile on wheels');
+ok( exists $hash{qr{car|truck}}); 
+is( $hash{qr{car|truck}}, 'automobile on wheels');
+is( delete $hash{qr{car|truck}}, 'automobile on wheels');
+ok(!exists $hash{qr{car|truck}});
+ok(!defined $hash{qr{car|truck}});
+
+ok(!exists $hash{truck}); 
+ok(!defined $hash{truck});
+
+ok(!%hash);
+ok(!keys %hash) if (tied %hash)->remove_dups;
+
+@hash{'foo', 'bar', 'buz'} = (); 
+$hash{qr{foo|some}} = 'something';
+$hash{miss}; 
+$hash{bar} = 'something else';
+$hash{some} = 'something else'; 
+$hash{qr{buz|zoo}} = 'something else';
+$hash{buz} = 'something else yet'; 
+is($hash{foo}, 'something'); 
+is($hash{bar}, 'something else'); 
+is($hash{some}, 'something else'); 
+is($hash{zoo}, 'something else'); 
+is($hash{buz}, 'something else yet'); 
+delete $hash{qr{.*}}; 
+is($hash{foo}, undef); 
+is($hash{bar}, undef); 
+is($hash{some}, undef); 
+is($hash{zoo}, undef); 
+is($hash{buz}, undef); 
+ok(!exists $hash{foo}); 
+ok(!exists $hash{bar}); 
+ok(!exists $hash{some}); 
+ok(!exists $hash{zoo}); 
+ok(!exists $hash{buz}); 
+ok( scalar %hash); 
+is( delete $hash{qr{foo|some}}, 'something');
+is( delete $hash{qr{buz|zoo}}, 'something else');
+ok(!%hash);
+ok(!keys %hash) if (tied %hash)->remove_dups;
+
+my ($sub, $sub2);
+
+$sub = sub{ "calculated value" };
+my $rbar = \'bar'; 
+is( $hash{$rbar} = $sub, $sub); 
+is( $hash{$rbar}, $sub);
+is( $hash{ 'bar'}, "calculated value");
+ok( exists $hash{$rbar});
+ok( exists $hash{ 'bar'});
+
+ok(!defined($hash{$rbar} = 'ignored value')); 
+ok(!exists $hash{ 'bar'}); 
+ok(!exists $hash{$rbar}); 
+ok(!defined $hash{ 'bar'}); 
+ok(!defined $hash{$rbar});
+
+$sub2 = sub{ 'calculated value 2' };
+my $rfoo = \'foo'; 
+is( $hash{\qr{foo|bar}} = $sub2, $sub2);
+is( $hash{\qr{foo|bar}}, $sub2);
+is( $hash{ qr{foo|bar}}, 'calculated value 2');
+is( $hash{ 'foo'}, 'calculated value 2');
+is( $hash{$rfoo}, $sub2);
+ok( exists $hash{$rfoo});
+ok( exists $hash{ 'foo'});
+ok(!defined($hash{$rfoo} = 'ignored value')); # same as delete $hash{'foo'}
+ok(!exists $hash{ 'foo'}); 
+ok(!exists $hash{$rfoo}); 
+ok(!defined $hash{ 'foo'}); 
+ok(!defined $hash{$rfoo}); 
+is( $hash{\qr{foo|bar}}, $sub2);
+is( $hash{ qr{foo|bar}}, 'calculated value 2');
+ok(!defined($hash{\qr{foo|bar}} = 'ignored value')); # same as delete $hash{'foo'}
+ok(!exists $hash{ qr{foo|bar}}); 
+ok(!exists $hash{\qr{foo|bar}}); 
+ok(!defined $hash{ qr{foo|bar}}); 
+ok(!defined $hash{\qr{foo|bar}});
+
+%hash = ();
+ok(!%hash);
+ok(!keys %hash) if (tied %hash)->remove_dups;
+
+my $rcar = \'car'; 
+$hash{$rcar} = sub{ "$_[0] is not a luxury"};
+is( $hash{ 'car'}, "car is not a luxury"); 
+
+$hash{\qr{car|automobile}} = sub { "$_[0] is a vehicle on wheels"}; 
+is( $hash{car}, "car is a vehicle on wheels"); 
+
+$hash{\qr{(automobile|car)}} = sub { "$1 is a vehicle on wheels"}; 
+is( $hash{automobile}, "automobile is a vehicle on wheels"); 
+
+1;
