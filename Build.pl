@@ -1,10 +1,10 @@
 use Module::Build;
 my $build = Module::Build->new(
 	module_name => 'Tie::REHash',
-	dist_version => '1.00',
+	dist_version => '1.01',
 	license  => 'perl',
 	requires => {
-		'perl'           => '5.005',
+		'perl'           => '5.006',
 		#'Some::Module'  => '1.23',
 		#'Other::Module' => '>= 1.2, != 1.5, < 2.0',
 	},

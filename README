@@ -1,4 +1,4 @@
-Tie-REHash version 1.00
+Tie-REHash version 1.01
 ============================
 
 Tie::REHash is a tie()d implementation of hybrid hash that allows using regexp "keys" along with plain keys (plus more).
@@ -19,16 +19,22 @@ On Windows this variant may work better:
 	Build test
 	Build install
 
-With perl 5.8 and older, if Module::Build is not installed:
+With perl 5.8, if Module::Build is not installed:
 
 	perl Makefile.PL
 	make
 	make test
 	make install
 
+With perl 5.6 you may need to install Test::More and Module::Build prior to installing this module using Build.PL method as described above.
+
+If above do not apply, not desirable or for some reason not work in your case (e.g. perl 5.6), find lib/Tie/REHash.pm within distribution and manually copy it into your Perl library directory (any of them) under the Tie/REHash.pm path. Most likely such manual installation will work perfectly.
+
+If necessary, you can even use Tie::REHash on perls older than 5.6 - for that install module manually (as just described above) and then modify module's source to replace "no warnings" and "our()" pragma with "$^W = 0" and "use vars qw()" respectively.
+
 DEPENDENCIES
 
-Tie::REHash is a pure Perl module that has no dependencies other then standard modules (perl 5.005 and later).
+Tie::REHash is a pure Perl module that has no dependencies other then standard modules (perl 5.6 and newer). However, automated installation process requires perl 5.8 and newer, or Test::More and Module::Build installed. Manual installation requires only hands available :)
 
 COPYRIGHT AND LICENCE
 

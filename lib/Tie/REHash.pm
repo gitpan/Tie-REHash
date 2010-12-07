@@ -1,27 +1,32 @@
 package Tie::REHash;
 
+use 5.006; 
 
-use 5.005;
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.00';
+$Tie::REHash::VERSION = '1.01';
 
 no warnings; 
-
-use Carp;
 
 sub CDUP () { 0 } 
 sub CMIS () { 1 } 
 sub CHIT () { 1 } 
 sub OFFSET () { 0 } 
-my %Global_options;
+our (%Global_options, %AD);
 
+$AD{croak} = 'use Carp;';
+
+$AD{import} = <<'SUBCODE';
 sub import {
 	my $self = shift;
 	%Global_options = ref $_[0] eq 'HASH' ? %{$_[0]} : @_;
-	
+
+	$Global_options{precompile}
+	and $self->precompile;
+
 	exists $Global_options{stringref_bug_is_fixed}
 	and $self->stringref_bug_is_fixed;
 }
+SUBCODE
 
 *tiehash = \&new;
 *TIEHASH = \&new;
@@ -33,69 +38,70 @@ sub import {
 *NEXTKEY = \&nextkey;
 *SCALAR = \&scalar;
 *CLEAR = \&clear;
-#*UNTIE = \&untie;
-*DESTROY = \&destroy;
 
-
+$AD{new} = <<'SUBCODE';
 sub new {
 	return $_[0] 
 	if ref $_[0];
-	
+
 	my $self = bless {}, $_[0]; 
-	
+
 	if (ref $_[1]) {
 		$_[1] =~ /HASH/
 		or croak("Wrong $_[1] argument to tie()");
-		
+
 		$self->{REGX} = [ $_[1] ]; 
 		$self->{DELIM} = $_[2] if @_ == 3;
 	}
 	else {
 		shift @_;
-		
+
 		$self->{DELIM} = pop @_
 		if @_ - 2*int(@_/2);
-		
+
 		$self->{REGX} = [ {@_} ];
 	}
 
 	$self->{ESC} = {};
-	
-	
+
 	$self->{DELIM} = $Global_options{autodelete_limit} 
 	if exists $Global_options{autodelete_limit};
-	
+
 	$self->{OFFSET2} = $Global_options{_offset2} 
 	if exists $Global_options{_offset2};
-	
+
 	$self->{REMOD} 
 	= exists $Global_options{remove_dups}
 	? $Global_options{remove_dups} 
 	: 1;
-	
+
 	$self->{CACH} = {} 
 	if exists $Global_options{do_cache};
-	
+
 	$self->{CMIS2} 
 	= exists $Global_options{do_cache_miss}
 	? $Global_options{do_cache_miss}
 	: 1;
-	
+
 	$self->{CHIT2} 
 	= exists $Global_options{do_cache_hit}
 	? $Global_options{do_cache_hit}
 	: 1;
-	
+
 	return $self
 }
+SUBCODE
 
-
+$AD{store} = <<'SUBCODE';
 sub store { 
 	my $self = $_[0];
+
+	$self->{IS_NORMALIZED} = undef;
+
 	my $cach = $self->{CACH} if !CDUP; 
-	
+
 	my ($k, $esc, $dyn);
-	
+
 	!ref $_[1] ? $k = $_[1] 
 	: do{ 
 		($k, $esc, $dyn) 
@@ -105,7 +111,7 @@ sub store {
 		? ( ${$_[1]}, undef, 1 ) 
 		: ( ${$_[1]}, 1 ) 
 		: ( $_[1] ); 
-		
+
 		if (ref $k eq 'Regexp') {
 			$dyn 
 			? $self->{DYN2}{$k} = 1 
@@ -113,51 +119,51 @@ sub store {
 			$esc 
 			? $self->{ESC2}{$k} = 1 
 			: delete $self->{ESC2}{$k};
-			
+
 			if (exists $self->{REGX2}{$k}) { 
 				my $regx = $self->{REGX};
-				
+
 				$k eq $regx->[$_] 
 				and splice(@$regx, $_, 1) 
 				foreach reverse 0..$#$regx;
 			} 
-			
+
 			my (@upfront, $element); 
 			while (@{$self->{REGX}}) { 
 				$element = $self->{REGX}[0]; 
-				
+
 				last 
 				if ref $element eq 'Regexp' 
 				or $self->{DELIM}
 				and $self->{DELIM} <= keys %$element; 
-				
+
 				shift @{$self->{REGX}};
-				
+
 				$_ =~ $k 
 				and delete $element->{$_}
 				foreach keys %$element;
-				
+
 				push @upfront, $element;
 			} 
 			unshift @{$self->{REGX}}, @upfront, $k; 
-			
+
 			if (!CDUP and $cach) { 
 				$_ =~ $k 
 				and delete $cach->{$_}
 				foreach keys %$cach;
 			}
-			
+
 			return $self->{REGX2}{$k} = $esc ? undef : $_[2] 
 		} 
-		
+
 		_examine($self) 
 		if @{$self->{REGX}} > 1; 
 	};
-	
+
 	!CDUP 
 	and $cach 
 	and delete $cach->{$k}; 
-	
+
 	$esc
 	and @{$self->{REGX}} == 1
 	and ref $self->{REGX}[0] eq 'HASH'
@@ -165,7 +171,7 @@ sub store {
 	, delete $self->{ESC}{$k}
 	, delete $self->{DYN}{$k}
 	, return undef; 
-	
+
 	$dyn 
 	? $self->{DYN}{$k} = 1 
 	: delete $self->{DYN}{$k};
@@ -178,27 +184,28 @@ sub store {
 		last 
 		if ref $_ eq 'Regexp' 
 		and $k =~ $_; 
-		
+
 		return $_->{$k} = $esc ? undef : $_[2] 
 		if ref $_ eq 'HASH'; 
-		
+
 		last if OFFSET
 		and $self->{OFFSET2} 
 		and $self->{OFFSET2} <= ++$offset; 
 	} 
 
 	unshift @{$self->{REGX}}, {$k => $esc ? undef : $_[2] };
-	
+
 	return $esc ? undef : $_[2] 
 }
+SUBCODE
 
-
+$AD{fetch} = <<'SUBCODE';
 sub fetch { 
 	my $self = $_[0];
 	my $type = $_[2];
-	
+
 	my ($k, $esc);
-	
+
 	!ref $_[1] ? $k = $_[1] 
 	: do{ 
 		($k, $esc) 
@@ -206,7 +213,7 @@ sub fetch {
 		or ref $_[1] eq 'SCALAR') 
 		? ( ${$_[1]}, 1 ) 
 		: ( $_[1] ); 
-		
+
 		if (ref $k eq 'Regexp') {
 			return 
 			 exists $self->{ESC2}{$k}
@@ -221,13 +228,13 @@ sub fetch {
 			? \$self->{REGX2}{$k}
 			: $self->{REGX2}{$k} 
 			if exists $self->{REGX2}{$k};
-			
+
 			return undef;
 		}
 	}; 
-	
+
 	my $cach = $self->{CACH}; 
-	
+
 	my $first_element2;
 	ref ($first_element2 = $self->{REGX}[0]) eq 'HASH'
 	or $first_element2 = undef ; 
@@ -235,19 +242,18 @@ sub fetch {
 		my $cach2 = $cach 
 		if $_ ne $cach
 		and $_ ne $first_element2; 
-		
+
 		if (ref $_ eq 'Regexp') { 
 			next if $k !~ $_; 
-			
+
 			if ( CHIT 
 			and $self->{CHIT2}
 			) {
 
-				
 				CDUP
 				and ref $self->{REGX}[0] eq 'HASH'
 				|| unshift @{$self->{REGX}}, {};
-				
+
 				return 
 				 exists $self->{ESC2}{$_}
 				? ( !$cach2
@@ -294,17 +300,15 @@ sub fetch {
 		} 
 		else { 
 			next if !exists $_->{$k}; 
-			
+
 			if ( CHIT 
 			and $self->{CHIT2}
 			) {
 
-
-				
 				CDUP
 				and ref $self->{REGX}[0] eq 'HASH'
 				|| unshift @{$self->{REGX}}, {};
-				
+
 				return 
 				 exists $self->{ESC}{$k}
 				? ( !$cach2
@@ -370,17 +374,38 @@ sub fetch {
 
 	return undef 
 }
+SUBCODE
 
+$AD{_examine} = <<'SUBCODE';
+sub _examine { 
+	my $self = $_[0];
 
+	my $element;
+	while (1) { 
+		last 
+		unless 
+		exists $self->{ESC2}{$element = 
+		 $self->{REGX}[-1]}; 
+
+		pop @{$self->{REGX}};
+		delete $self->{REGX2}{ $element};
+		delete $self->{ESC2}{$element};
+		delete $self->{DYN2}{$element};
+	}
+}
+SUBCODE
+
+$AD{exists} = <<'SUBCODE';
 sub exists { 
 	$_[2] = 'ex'; 
 	goto &FETCH 
 }
+SUBCODE
 
-
+$AD{delete} = <<'SUBCODE';
 sub delete {
 	my ($k, $esc, $dyn); 
-	
+
 	!ref $_[1] ? $k = $_[1] 
 	: do{ 
 		($k, $esc, $dyn) 
@@ -390,50 +415,32 @@ sub delete {
 		? ( ${$_[1]}, undef, 1 ) 
 		: ( ${$_[1]}, 1 ) 
 		: ( $_[1] ); 
-		
+
 		if (ref $k eq 'Regexp') {
 			return( ( $_[0]->FETCH( $k)
 			 , $_[0]->STORE(\$k) )[0] )
 		}
 	};
-	
+
 	return undef 
 	unless my $value = $_[0]->FETCH( $k, 'sr'); 
 	$value = $$value; 
 	$_[0]->STORE(\$k);
 	return $value 
 }
+SUBCODE
 
-
-sub _examine { 
-	my $self = $_[0];
-	
-	
-	my $element;
-	while (1) { 
-		last 
-		unless 
-		exists $self->{ESC2}{$element = 
-		 $self->{REGX}[-1]}; 
-		
-		pop @{$self->{REGX}};
-		delete $self->{REGX2}{ $element};
-		delete $self->{ESC2}{$element};
-		delete $self->{DYN2}{$element};
-	}
-}
-
-
+$AD{normalize} = <<'SUBCODE';
 sub normalize { 
 	my $self = $_[0];
-	
+
 	my ($element, $element2); 
-	
+
 	my $regx = \@{$self->{REGX}};
 	my $esc = \%{$self->{ESC}};
 	my $esc2 = \%{$self->{ESC2}};
 	my $regx2 = \%{$self->{REGX2}};
-	
+
 	my $rem_esc_2;
 	my $rem_all_2;
 	my $rem_2 = $self->{REMOD};
@@ -444,10 +451,10 @@ sub normalize {
 	: $rem_2 && !($self)->SCALAR() 
 	? $rem_esc_2 = 1 
 	: ();
-	
+
 	foreach $element2 (@$regx) { 
 		next unless ref $element2 eq 'HASH'; 
-		
+
 		foreach my $k (keys %$element2) { 
 			my $in_over;
 			if ($rem_all_2
@@ -469,20 +476,19 @@ sub normalize {
 					: $element2->{$k} eq $regx2->{$element} )
 					, next;
 
-
 					$over_element2 = 1 if $element eq $element2;
-					
+
 					$in_over = 1 
 					if ref $element eq 'Regexp' 
 					? $k =~ $element 
 					: $over_element2; 
 				} 
-				
+
 				!defined $element2_k_is_2 
 				and $esc_key
 				and exists $element2->{$k}
 				and $element2_k_is_2 = 1; 
-				
+
 				delete $element2->{$k} 
 				if $element2_k_is_2; 
 			}
@@ -492,58 +498,60 @@ sub normalize {
 					and ( ref $element eq 'HASH' 
 					and delete $element->{$k} )
 					, next;
-					
+
 					$in_over = 1 
 					if ref $element eq 'Regexp' 
 					? $k =~ $element 
 					: $element eq $element2;
 				} 
 			}
-	
+
 		}
 	}
-	
+
 	@$regx = ( 
 		{ map ref $_ eq 'HASH' ? %$_ : (), @$regx },
 		( map ref $_ ne 'HASH' ? $_ : (), @$regx ),
 	);
-	
+
 	_examine($self) 
 	if @$regx > 1;
 
-
-
+	$self->{IS_NORMALIZED} = 1;
 }
+SUBCODE
 
-
+$AD{firstkey} = <<'SUBCODE';
 sub firstkey { 
 	my $self = $_[0];
-	
-	($self)->normalize;
-	
+
+	($self)->normalize unless $self->{IS_NORMALIZED};
+
 	$self->{EACH} = [	0, [reverse @{$self->{REGX}}] ]; 
 
 	return( ($self)->NEXTKEY) 
 }
+SUBCODE
 
+$AD{nextkey} = <<'SUBCODE';
 sub nextkey { 
 	my $self = $_[0];
-	
+
 	return( ($self)->firstkey)
 	if !$self->{EACH};
-	
+
 	NEXT: {
-	
+
 	delete $self->{EACH}
 	, return wantarray ? () : undef
 	if $#{$self->{EACH}[1]} 
 	< $self->{EACH}[0]; 
-	
+
 	my $element = $self->{EACH}[1]->[$self->{EACH}[0]]; 
-	
+
 	if (ref $element eq 'Regexp') {
 		++$self->{EACH}[0];
-		
+
 		return( ( exists $self->{DYN2}{$element}
 		 || exists $self->{ESC2}{$element} ? \$element : $element
 		, wantarray ? $self->{REGX2}{ $element} : () 
@@ -553,30 +561,30 @@ sub nextkey {
 		my ($k, $value);
 		wantarray ? ($k, $value) = each %$element 
 		: ($k = each %$element);
-		
+
 		++$self->{EACH}[0]
 		, redo NEXT
 		if !defined $k;
-		
+
 		return(	( exists $self->{DYN}{$k}
 		 || exists $self->{ESC}{$k} ? \$k : $k
 		, wantarray ? $value : ()
 		)[0, wantarray ? 1 : ()] ) 
 	}
-	
-	} 
-	
 
+	} 
 
 }
+SUBCODE
 
-
-
+$AD{keys} = <<'SUBCODE';
 sub keys {
 	(my $self, my $as_arrayref) = @_;
-	
+
+	($self)->normalize unless $self->{IS_NORMALIZED};
+
 	my (@list, $count);
-	
+
 	if (wantarray or $as_arrayref) {
 		my $element;
 		foreach $element (reverse @{$self->{REGX}}) { 
@@ -597,15 +605,19 @@ sub keys {
 		ref $_ eq 'Regexp' ? $count++ : ($count += keys %$_)
 		foreach @{$self->{REGX}};
 	}
-	
+
 	wantarray ? @list : $as_arrayref ? \@list : $count
 }
+SUBCODE
 
+$AD{values} = <<'SUBCODE';
 sub values {
 	(my $self, my $as_arrayref) = @_;
-	
+
+	($self)->normalize unless $self->{IS_NORMALIZED};
+
 	my (@list, $count);
-	
+
 	if (wantarray or $as_arrayref) {
 		my $element;
 		foreach $element (reverse @{$self->{REGX}}) { 
@@ -621,44 +633,46 @@ sub values {
 		ref $_ eq 'Regexp' ? $count++ : ($count += keys %$_)
 		foreach @{$self->{REGX}};
 	}
-	
+
 	wantarray ? @list : $as_arrayref ? \@list : $count
 } 
+SUBCODE
 
+$AD{list} = <<'SUBCODE';
 sub list {
 	my $as_arrayref = $_[1];
-	
+
 	my $ks = $_[0]->keys( 'as_arrayref'); 
 	my $values = $_[0]->values('as_arrayref'); 
 	my @list = map +($ks->[$_], $values->[$_]), 0..$#$ks;
-	
+
 	wantarray ? @list : $as_arrayref ? \@list : @list
 }
+SUBCODE
 
-
-
+$AD{scalar} = <<'SUBCODE';
 sub scalar { 
 	my $self = $_[0];
-	
+
 	return scalar %{$self->{REGX}[0]}
 	if @{$self->{REGX}} == 1
 	and ref $self->{REGX}[0] eq 'HASH'
 	and !%{$self->{ESC}}; 
-	
+
 	ref $_ eq 'Regexp' 
 	and !exists $self->{ESC2}{$_}
 	and return 1 
 	foreach @{$self->{REGX}};
-	
+
 	my $cach = $self->{CACH} if !CDUP; 
-	
+
 	my ($element, $element2, $k);
 	foreach $element2 ($cach||(), @{$self->{REGX}}) { 
 		next if ref $element2 eq 'Regexp'; 
-		
+
 		KEY: foreach $k (keys %$element2) { 
 			next if exists $self->{ESC}{$k};
-			
+
 			foreach $element ($cach||(), @{$self->{REGX}}) { 
 				$element eq $element2
 				and return 1;
@@ -679,14 +693,15 @@ sub scalar {
 			return 1
 		}
 	} 
-	
+
 	return 0
 }
+SUBCODE
 
-
+$AD{clear} = <<'SUBCODE';
 sub clear { 
 	my $self = $_[0];
-	
+
 	@{$self->{REGX}} = ();
 	%{$self->{ESC}} = ();
 	%{$self->{DYN}} = ();
@@ -695,21 +710,16 @@ sub clear {
 	%{$self->{REGX2}} = ();
 	%{$self->{CACH}} = () if $self->{CACH}; 
 }
+SUBCODE
 
-
-sub destroy {
+$AD{DESTROY} = <<'SUBCODE';
+sub DESTROY {
 	%{$_[0]} = ();
 }
-
-
-sub flush_cache {
-	 my $self = $_[0];
-	
-	%{ $self->{CACH}} = () 
-	if $self->{CACH}; 
-}
+SUBCODE
 
 *storable = \&freeze;
+$AD{freeze} = <<'SUBCODE';
 sub freeze { 
 	my $what = $_[1];
 	my $selffreeze = ( $what =~ /self/i );
@@ -719,11 +729,11 @@ sub freeze {
 		$self->{REGX2} = {%{$self->{REGX2}}};
 		$self->{ESC2} = {%{$self->{ESC2}}};
 		$self->{DYN2} = {%{$self->{DYN2}}};
-		
+
 		bless $self, ref($_[0])||$_[0]
 		if $what =~ /clone/i;
 	}
-	
+
 	my ($wraps_removed, $old);
 	ref $_ eq 'Regexp' 
 	and $old = $_ , $_ = "$_"
@@ -739,20 +749,22 @@ sub freeze {
 	 and $self->{DYN2}{$_} 
 	 = delete $self->{DYN2}{$old} )
 	foreach @{$self->{REGX}}; 
-	
+
 	return $self
 }
+SUBCODE
 
 *thaw = \&unfreeze;
 *restore = \&unfreeze;
+$AD{unfreeze} = <<'SUBCODE';
 sub unfreeze {
 	my $do_not_bless = $_[2];
 	my $self = ref $_[1] ? $_[1] : ref $_[0] ? $_[0] : return undef;
-	
+
 	bless $self, ref($_[0])||$_[0]
 	unless $self =~ /=/ 
 	or $do_not_bless; 
-	
+
 	my $old;
 	!ref $_ 
 	and $old = $_ , $_ = qr{$_}
@@ -766,66 +778,144 @@ sub unfreeze {
 	 and $self->{DYN2}{$_} 
 	 = delete $self->{DYN2}{$old} )
 	foreach @{$self->{REGX}};
-	
+
 	return $self
 }
+SUBCODE
 
+$AD{STORABLE_freeze} = <<'SUBCODE';
 sub STORABLE_freeze { 
 	return (undef, $_[0]->freeze)
 }
+SUBCODE
 
+$AD{STORABLE_thaw} = <<'SUBCODE';
 sub STORABLE_thaw { 
 	my $self = $_[3];
  $_[0]->unfreeze($self);
  %{$_[0]} = %$self;
 }
+SUBCODE
 
-
-
-
+$AD{autodelete_limit} = <<'SUBCODE';
 sub autodelete_limit {
 	my $self = $_[0];
-	
+
 	return $self->{DELIM} = $_[1] if @_ > 1;
 	return $self->{DELIM}
 }
+SUBCODE
 
+$AD{_offset2} = <<'SUBCODE';
 sub _offset2 {
 	my $self = $_[0];
-	
+
 	return $self->{OFFSET2} = $_[1] if @_ > 1;
 	return $self->{OFFSET2}
 }
+SUBCODE
 
+$AD{do_cache} = <<'SUBCODE';
 sub do_cache {
 	my $self = $_[0];
-	
+
 	return $self->{CACH} ||= {} if $_[1]; 
 	return delete $self->{CACH}
 }
+SUBCODE
 
+$AD{do_cache_miss} = <<'SUBCODE';
 sub do_cache_miss {
 	my $self = $_[0];
 
 	return $self->{CMIS2} = $_[1] if @_ > 1;
 	return $self->{CMIS2}
 }
+SUBCODE
 
+$AD{do_cache_hit} = <<'SUBCODE';
 sub do_cache_hit {
 	my $self = $_[0];
 
 	return $self->{CHIT2} = $_[1] if @_ > 1;
 	return $self->{CHIT2}
 }
+SUBCODE
 
+$AD{flush_cache} = <<'SUBCODE';
+sub flush_cache {
+	 my $self = $_[0];
+
+	%{ $self->{CACH}} = () 
+	if $self->{CACH}; 
+}
+SUBCODE
+
+$AD{remove_dups} = <<'SUBCODE';
 sub remove_dups {
 	my $self = $_[0];
 
 	return $self->{REMOD} = $_[1] if @_ > 1;
 	return $self->{REMOD}
 }
+SUBCODE
 
+$AD{die_on_stringref_bug} = $AD{stringref_bug_is_fixed} = <<'SUBCODE';
+sub die_on_stringref_bug {
+	my $bugtxt = 'Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2, storing/fetching to/from the rehash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"}, or fatal error will result. The workaround: $k = \"foo"; $hash{$k}.';
+	#warn("BUG WARNING: $bugtxt"); 
 
+	*FETCH2 = \&FETCH;
+	*STORE2 = \&STORE;
+
+	my $qr_scalaref = qr{^SCALAR\(0x[\dabcdef]+\)$};
+	my $errmess = "Tie::REHash: Aborting due to Perl bug - escaped literal (or stringified scalarref) key has been used. $bugtxt";
+
+	*FETCH = sub{
+		!ref $_[1] 
+		and $_[1] =~ $qr_scalaref
+		and croak($errmess);
+
+		goto &FETCH2;
+	};
+	*STORE = sub{
+		!ref $_[1] 
+		and $_[1] =~ $qr_scalaref
+		and croak($errmess);
+
+		goto &STORE2;
+	};
+}
+
+sub stringref_bug_is_fixed {
+	*FETCH = \&FETCH2;
+	*STORE = \&STORE2;
+}
+SUBCODE
+
+$AD{precompile} = <<'SUBCODE';
+sub precompile {
+	eval( $AD{$_}), !$@ || carp( "Compilation error: "
+	. "$@ in code: $AD{$_}")
+	foreach keys %AD;
+
+	return 1
+}
+SUBCODE
+
+eval join '', map "sub $_;", keys %AD; 
+
+sub is_precompiled { 0 }
+$AD{is_precompiled} = <<'SUBCODE';
+sub is_precompiled { 1 }
+SUBCODE
+
+sub AUTOLOAD {
+	eval( $AD{$Tie::REHash::AUTOLOAD}
+	 ||( $Tie::REHash::AUTOLOAD =~ /::(\w+)$/, $AD{$1} ) );
+	goto &$Tie::REHash::AUTOLOAD 
+	if defined &$Tie::REHash::AUTOLOAD;
+}
 
 {
 	package Tie::REHash::StringrefBug;
@@ -838,42 +928,10 @@ tie my %detector, 'Tie::REHash::StringrefBug';
 and $detector{\'foo'} eq 'SCALAR'
 #$] >= 5.012 
 or die_on_stringref_bug();
-sub die_on_stringref_bug {
-	my $bugtxt = 'Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2, storing/fetching to/from the rehash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"}, or fatal error will result. The workaround: $k = \"foo"; $hash{$k}.';
-	#warn("BUG WARNING: $bugtxt"); 
-	
-	*FETCH2 = \&FETCH;
-	*STORE2 = \&STORE;
-	
-	my $qr_scalaref = qr{^SCALAR\(0x[\dabcdef]+\)$};
-	my $errmess = "Tie::REHash: Aborting due to Perl bug - escaped literal (or stringified scalarref) key has been used. $bugtxt";
-	
-	*FETCH = sub{
-		!ref $_[1] 
-		and $_[1] =~ $qr_scalaref
-		and croak($errmess);
-		
-		goto &FETCH2;
-	};
-	*STORE = sub{
-		!ref $_[1] 
-		and $_[1] =~ $qr_scalaref
-		and croak($errmess);
-		
-		goto &STORE2;
-	};
-}
-
-sub stringref_bug_is_fixed {
-	*FETCH = \&FETCH2;
-	*STORE = \&STORE2;
-}
-
 
 1
 
 __END__
-
 
 =head1 NAME
 
@@ -909,7 +967,7 @@ Tie::REHash - the tie()d implementation of RegExp Hash (REHash) that allows usin
 
 Tie::REHash is a tie()d implementation of hash that allows using regexp "keys" along with plain keys.
 
-Regexp key in hash is equivalent to set of string keys that it matches, called "matching keys". Matching key (as well as regexp key that created it) exists(). Regexp key and all its matching keys share same single value. If we take dictionary view of a hash (in some programming languages they call "dictionary" what we call "hash"), then Tie::REHash is the implementation of hash that effectively allows defining arbitrary sets of synonymous (aliased) keys by using regexp keys for that.
+Storing regexp key in a hash tie()d to Tie::REHash is equivalent to storing set of string keys that regexp matches, called "matching keys". Matching key (as well as regexp key that created it) exists(). Regexp key and all its matching keys share same single value. If we take dictionary view of a hash (in some programming languages they call "dictionary" what we call "hash"), then Tie::REHash is the implementation of hash that effectively allows defining arbitrary sets of synonymous (aliased) keys by using regexp keys for that.
 
 To make matters worse, Tie::REHash also supports notion of "dynamic value".
 
@@ -933,7 +991,7 @@ Newly tie()d hash can be initialized from existing plain hash. For large hashes 
 
 The %init_hash is then used internally by rehash, so its state may implicitly change (at a distance) due to %rehash manipulation. Moreover, the %init_hash may itself be a tie()d hash, a rehash, and even the same %rehash:
 
-	tie %rehash, 'Tie::REHash', \%rehash;      # NOT!
+	# tie %rehash, 'Tie::REHash', \%rehash;      # NOT!
 
 Later is not blocked and will blow up in complex, potentially infinite recursion, so don't (though it can be used for interesting recursion research and smoke experiments :)).
 
@@ -955,7 +1013,7 @@ The default values of attributes (see below) of every new Tie::REHash instance c
 
 	use Tie::REHash  attribute => $value, attribute2 => $value2;
 
-Attributes that can be set this way are: autodelete_limit, do_cache, do_cache_miss, do_cache_hit, remove_dups. 
+Attributes that can be set this way are: autodelete_limit, do_cache, do_cache_miss, do_cache_hit, remove_dups.
 
 =head1 Hash Interface
 
@@ -965,11 +1023,9 @@ In particular, if rehash is used only as standard hash, it behaves exactly like 
 
 In general case, rehash behaves same as standard hash, except for the following:
 
-=head1 Regexp Keys
+=head2 Regexp Keys
 
-Assigning value to regexp key prepared with qr{} operator has the following effects that collectively form notion of regexp key: 
-
-Storing regexp key in hash effectively creates in that hash a set of string keys that regexp matches - called "matching keys"; matching key, if fetched, returns value of last stored regexp key that matches it:
+Storing regexp key in rehash effectively stores a set of string keys that regexp matches - called "matching keys"; matching key, if fetched, returns value of last stored regexp key that matches it:
 
 	$rehash{qr{car|automobile}} =  'vehicle on wheels'; # note qr{}
 	$rehash{car}                eq 'vehicle on wheels'; # true
@@ -996,7 +1052,7 @@ Matching key do exists() and can be delete()d, but it is not returned by keys() 
 
 Accordingly, in case of rehash each() key returned by keys() exists(), but, unlike in case of standard hash, the reverse is not true - matching key exists(), but is not returned by keys() and each(). (For more details refer to section "keys(), values(), each() and List Context" below.)
 
-If some or even all matching keys of given regexp key have been either delete()d (except delete()ing the very regexp key) or overwritten (see above example), the regexp key still exists() as well as exist remaining, if any, matching keys of that regexp key, so that its value can still be fetched. However, the delete()ing of regexp key removes it and also delete()s all its matching keys (including already overwritten ones). For example:
+If some or even all matching keys of given regexp key have been either delete()d (except delete()ing the very regexp key) or overwritten (see above example), the regexp key still exists() as well remaining (not deleted), if any, matching keys of that regexp key still exist and their value can be fetched. However, the delete()ing of regexp key removes it and also delete()s all its matching keys (including already overwritten ones). For example:
 
 	$rehash{qr{car|automobile}} = 'vehicle on wheels';
 	delete $rehash{car};
@@ -1149,11 +1205,9 @@ If scalar(keys(%rehash)) returns false, then scalar(%rehash) is false too. The r
 
 =cut
 
-
-
 =head1 Performance
 
-Rehash accesses are can be many times slower than that of a plain hash, so performance issues may be important.
+Rehash accesses can be many times slower than that of a plain hash, so performance issues may be important.
 
 Simple rules for rehash performance optimization are: store slowest regexp keys first, while most often hit regexp keys - last; optimize regexps for performance (but, of course, do not get too obsessed with it - avoid micro-tunning).
 
@@ -1163,7 +1217,9 @@ Performance of plain key hits usually do not depend on number of regexp keys in 
 
 Unlike string keys, fetching regexp keys is always fast (but those are unlikely to be fetched often).
 
-Evaluating rehash in list context, as well as calling keys(), values(), first call of each() or evaluating rehash in list context all may be relatively costly in case of rehash with large number of plain/regexp keys. In this case or in case of tight loop, the tied(%rehash)->keys(), tied(%rehash)->values() or tied(%rehash)->list() are better used instead of, respectively, keys(%rehash), values(%rehash) or evaluating %rehash in list context, since these methods can be times (5-6 in some benchmarks) faster. See "keys(), values() and list() methods" section below.
+Evaluating rehash in list context, as well as calling keys(), values(), first call of each() or evaluating rehash in list context all may be relatively costly in case of rehash with large number of plain/regexp keys. In this case or in case of tight loop, the tied(%rehash)->keys(), tied(%rehash)->values() or tied(%rehash)->list() are better used instead of, respectively, keys(%rehash), values(%rehash) or evaluating %rehash in list context, since these methods can be times (5-6 in some benchmarks) faster. See "keys(), values() and list() methods" section below. 
+
+Note also that mere use()/require()ing of Tie::REHash is relatively inexpensive. For comparison, it is about twice as costly as use Carp, so that in most cases there is no need to be specifically conserned about use()/require()ing it unnecessarily (like in case of Carp itself).
 
 =head2 Caching 
 
@@ -1177,7 +1233,7 @@ The approximate rule is: if number of regexp keys in the hash is equal or higher
 
 If do_cache_hit() attribute is set true, string key hits (except dynamic values) are cached - repeated same key hits are fast. False do_cache_hit() turns caching of hits off. The default is true do_cache_hit(1).
 
-Caching pays off only if repeated fetches of same key happen often enough; otherwise caching just adds overhead without actually using the cache very much. For that reason, caching is off by default and should be turned on manually only for those hashes that need it. Alternatively, caching can be turned on by default for all hashes upon Tie::REHash loading:
+Caching pays off only if repeated fetches of same key happen often enough; otherwise caching just adds overhead without actually using the cache very much. For that reason, caching is off by default and should be turned on manually only for those rehashes that need it. Alternatively, caching can be turned on by default for all hashes upon Tie::REHash loading:
 
 	use Tie::REHash do_cache => 1;
 
@@ -1200,7 +1256,7 @@ In particular, for Data::Dumper:
 	$data = Data::Dumper::Dumper(tied(%rehash)->freeze);
 	tie %clone, Tie::REHash->unfreeze(eval($data));
 
-Direct serialization with - Data::Dumper::Dumper(\%rehash) or Data::Dumper::Dumper(tied(%rehash)) - will not work.
+Direct serialization with Data::Dumper - Data::Dumper::Dumper(\%rehash) or Data::Dumper::Dumper(tied(%rehash)) - will not work.
 
 For Storable:
 
@@ -1269,9 +1325,9 @@ However, if called in scalar context with true argument, the return value is ref
 
 The freeze() method always returns serializable (frozen) data structure that is a "snapshot" of Tie::REHash object instance that freeze() was called on. The returned snapshot data structure can then be serialized using some serializer. The type of data structure depends on argument, as follows:
 
-'data'   - unblessed data structure copied from Tie::REHash instance (later is not altered)
-'clone'  - blessed copy of Tie::REHash instance (later is not altered)
-'itself' - the very Tie::REHash instance that freeze() was called on is converted into serializable, but non-operational (!), state and returned
+'data'   - unblessed data structure copied from Tie::REHash instance (later is not altered);
+'clone'  - blessed copy of Tie::REHash instance (later is not altered);
+'itself' - the very Tie::REHash instance that freeze() was called on is converted into serializable, but non-operational (!), state and returned.
 
 If no or some other argument is specified, freeze() defaults to 'data' mode. With both 'data' and 'clone' arguments freeze() returns shallow copies that share most of its data with Tie::REHash instance - those data structures should be used in read-only mode.
 
@@ -1348,7 +1404,9 @@ Benchmarking of keys(%rehash) vs. tied(%rehash)->keys shows that perltie hash AP
 
 Send bug reports, patches, ideas, suggestions, feature requests or any module-related information to F<parsels@mail.ru>. They are welcome and each carefully considered.
 
-If you have examples of a neat usage of Tie::REHash, please, also drop a line.
+In particular, if you find certain portions of this documentation either unclear, complicated or incomplete, please let me know, so that I can try to make it better. 
+
+If you have examples of a neat usage of Tie::REHash, drop a line too.
 
 =head1 AUTHOR
 
@@ -1367,7 +1425,5 @@ Redistribution and use in source and binary forms, with or without modification,
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 =cut
-
 
