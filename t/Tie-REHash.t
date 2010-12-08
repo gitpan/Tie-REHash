@@ -7,19 +7,31 @@ use strict;
 use Test::More tests => 112;
 BEGIN { $^W = 0; } 
 
-BEGIN { use_ok('Tie::REHash') };
-
 {
 package Tie::REHash::StringrefBug;
 sub TIEHASH { bless {}, $_[0] }
 sub STORE { ref $_[1] }
 sub FETCH { ref $_[1] }
+
+package Tie::REHash::sub_SCALAR;
+sub TIEHASH { bless {}, $_[0] }
+sub SCALAR { 1 }
 }
 tie my %detector, 'Tie::REHash::StringrefBug';
 ( $detector{\'foo'} = 1 ) eq 'SCALAR'
 and $detector{\'foo'} eq 'SCALAR'
 #$] >= 5.012 
-or diag('BUG WARNING! Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"}, or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.');
+or diag('
+BUG WARNING! Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"}, or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.
+'); 
+
+tie my %detector2, 'Tie::REHash::sub_SCALAR';
+scalar(%detector2) == 1
+or my $pre_v5_8_3 = 1 , diag("
+BUG WARNING! Due to incomplete implementation of hash tie()ing in perls prior to v5.8.3 (this version is $]), evaluating hash (tie()d to Tie::REHash) in scalar context will not work as expected - use tied(%hash)->scalar instead.
+");
+
+BEGIN { use_ok('Tie::REHash') };
 
 tie my %hash, 'Tie::REHash';
 
@@ -32,21 +44,23 @@ ok(!%hash); # initially hash is empty
 is($hash{hash} = 'associative array','associative array');
 is($hash{hash}, 'associative array');
 ok(exists $hash{hash}); 
-ok(scalar %hash); 
+ok($pre_v5_8_3 ? tied(%hash)->scalar : scalar(%hash)); 
 is($hash{hash} = 'vocabulary', 'vocabulary'); 
 is($hash{hash}, 'vocabulary'); 
 my $ref2hash_element = \$hash{hash}; 
 $$ref2hash_element = 'map'; 
 is($hash{hash}, 'map'); 
-like(scalar(%hash), qr{\d+/\d+}, 'Standard hash: buckets allocated in scalar context')
-or diag('scalar %hash:' . scalar(%hash));
+like($pre_v5_8_3 ? tied(%hash)->scalar : scalar(%hash), qr{\d+/\d+}, 'Standard hash: buckets allocated in scalar context')
+or diag('scalar %hash: ' 
+. $pre_v5_8_3 ? tied(%hash)->scalar : scalar(%hash));
 is(delete $hash{hash}, 'map'); 
 ok(!exists $hash{hash}); 
 ok(!%hash);
 
 is($hash{qr{car|automobile}} = 'vehicle on wheels','vehicle on wheels');
-ok(scalar %hash) 
-or diag('scalar %hash:' . scalar(%hash));
+ok($pre_v5_8_3 ? tied(%hash)->scalar : scalar(%hash)) 
+or diag('scalar %hash:' 
+. $pre_v5_8_3 ? tied(%hash)->scalar : scalar(%hash));
 
 is($hash{car}, 'vehicle on wheels');
 is($hash{automobile}, 'vehicle on wheels');
@@ -123,7 +137,7 @@ ok(!exists $hash{bar});
 ok(!exists $hash{some}); 
 ok(!exists $hash{zoo}); 
 ok(!exists $hash{buz}); 
-ok( scalar %hash); 
+ok( $pre_v5_8_3 ? tied(%hash)->scalar : scalar(%hash)); 
 is( delete $hash{qr{foo|some}}, 'something');
 is( delete $hash{qr{buz|zoo}}, 'something else');
 ok(!%hash);

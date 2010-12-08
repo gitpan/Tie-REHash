@@ -3,7 +3,7 @@ package Tie::REHash;
 use 5.006; 
 
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.01';
+$Tie::REHash::VERSION = '1.02';
 
 no warnings; 
 
@@ -712,11 +712,9 @@ sub clear {
 }
 SUBCODE
 
-$AD{DESTROY} = <<'SUBCODE';
 sub DESTROY {
 	%{$_[0]} = ();
 }
-SUBCODE
 
 *storable = \&freeze;
 $AD{freeze} = <<'SUBCODE';
@@ -1219,7 +1217,7 @@ Unlike string keys, fetching regexp keys is always fast (but those are unlikely 
 
 Evaluating rehash in list context, as well as calling keys(), values(), first call of each() or evaluating rehash in list context all may be relatively costly in case of rehash with large number of plain/regexp keys. In this case or in case of tight loop, the tied(%rehash)->keys(), tied(%rehash)->values() or tied(%rehash)->list() are better used instead of, respectively, keys(%rehash), values(%rehash) or evaluating %rehash in list context, since these methods can be times (5-6 in some benchmarks) faster. See "keys(), values() and list() methods" section below. 
 
-Note also that mere use()/require()ing of Tie::REHash is relatively inexpensive. For comparison, it is about twice as costly as use Carp, so that in most cases there is no need to be specifically conserned about use()/require()ing it unnecessarily (like in case of Carp itself).
+Note also that mere use()/require()ing of Tie::REHash is relatively inexpensive. For comparison, it is about twice as costly as use Carp (faster CPU make this ratio even closer to 1), so that in most cases there is no need to be specifically conserned about use()/require()ing it unnecessarily (like in case of Carp itself).
 
 =head2 Caching 
 
@@ -1395,6 +1393,8 @@ The optimal value of autodelete_limit() is approximated by the number of plain k
 =head1 BUGS
 
 Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2 (reportedly fixed in v5.13 and newer), storing/fetching to/from the rehash should avoid escaped literal keys (as well as stringified scalarref keys), like $rehash{\"foo"}, or fatal error will result. The workaround: $key = \"foo"; $rehash{$key}.
+
+Due to incomplete implementation of hash tie()ing in perls prior to v5.8.3, evaluating hash (tie()d to Tie::REHash) in scalar context will not work as expected - use tied(%hash)->scalar instead.
 
 =head1 TODO
 
