@@ -3,7 +3,7 @@ package Tie::REHash;
 use 5.006; 
 
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.02';
+$Tie::REHash::VERSION = '1.03'; 
 
 no warnings; 
 
@@ -860,7 +860,7 @@ SUBCODE
 
 $AD{die_on_stringref_bug} = $AD{stringref_bug_is_fixed} = <<'SUBCODE';
 sub die_on_stringref_bug {
-	my $bugtxt = 'Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2, storing/fetching to/from the rehash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"}, or fatal error will result. The workaround: $k = \"foo"; $hash{$k}.';
+	my $bugtxt = 'Due to bug (rt.perl.org ticket 79178) in your instance of perl, storing/fetching to/from the rehash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"} (or in one statement: $regx2{$k = \"foo"}), or fatal error will result. The workaround: $k = \"foo"; $hash{$k}.';
 	#warn("BUG WARNING: $bugtxt"); 
 
 	*FETCH2 = \&FETCH;
@@ -1120,7 +1120,7 @@ Since dynamic value of the key gets calculated, it can vary. In particular, if r
 
 Moreover, using regexp key one may not only create infinite set of keys, but also use dynamic value to create corresponding infinite set of values. For example, the following rehash is set to have an infinite set of key/value pairs.
 
-	$rehash{\qr{.*}} = sub { $1 }; 
+	$rehash{\qr{.*}} = sub { $_[0] }; 
 
 =head2 Escaped Keys
 
@@ -1392,7 +1392,7 @@ The optimal value of autodelete_limit() is approximated by the number of plain k
 
 =head1 BUGS
 
-Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2 (reportedly fixed in v5.13 and newer), storing/fetching to/from the rehash should avoid escaped literal keys (as well as stringified scalarref keys), like $rehash{\"foo"}, or fatal error will result. The workaround: $key = \"foo"; $rehash{$key}.
+Due to bug (rt.perl.org ticket 79178) in some perls (not bound to specific versions range), storing/fetching to/from the rehash should avoid escaped literal keys (as well as stringified scalarref keys), like $rehash{\"foo"}, or fatal error will result. The workaround: $key = \"foo"; $rehash{$key} (or in one statement: $rehash{$key = \"foo"}). If your perl is affected, you will see BUG WARNING during module installation. 
 
 Due to incomplete implementation of hash tie()ing in perls prior to v5.8.3, evaluating hash (tie()d to Tie::REHash) in scalar context will not work as expected - use tied(%hash)->scalar instead.
 

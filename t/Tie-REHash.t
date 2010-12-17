@@ -22,7 +22,7 @@ tie my %detector, 'Tie::REHash::StringrefBug';
 and $detector{\'foo'} eq 'SCALAR'
 #$] >= 5.012 
 or diag('
-BUG WARNING! Due to bug (rt.perl.org ticket 79178) introduced in perl v5.12.0 and persisting at least up to v5.12.2, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"}, or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.
+BUG WARNING! Due to bug (rt.perl.org ticket 79178) in your instance of perl, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"} (or in one statement: $rehash{$key = \"foo"}), or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.
 '); 
 
 tie my %detector2, 'Tie::REHash::sub_SCALAR';
