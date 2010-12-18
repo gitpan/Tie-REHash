@@ -3,7 +3,7 @@ package Tie::REHash;
 use 5.006; 
 
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.03'; 
+$Tie::REHash::VERSION = '1.03_01'; 
 
 no warnings; 
 
@@ -12,6 +12,7 @@ sub CMIS () { 1 }
 sub CHIT () { 1 } 
 sub OFFSET () { 0 } 
 our (%Global_options, %AD);
+our $qr_fragment = qr{(subcall[\w\d]+)(?:\(\))?}; 
 
 $AD{croak} = 'use Carp;';
 
@@ -199,6 +200,47 @@ sub store {
 }
 SUBCODE
 
+$AD{subcall_match} = <<'SUBCODE';
+SUBCODE
+$AD{subcall_match2} = <<'SUBCODE';
+	!$cach2
+	? $self->{REGX2}{ $_}
+	: ( CDUP 
+	? $self->{REGX}[0]{$k}
+	: ${ $cach2->{$k}
+	 = \$self->{REGX2}{ $_} } )
+SUBCODE
+$AD{subcall_match0} = <<'SUBCODE';
+	!$cach2
+	? undef
+	: ( CDUP 
+	? $self->{REGX}[0]{$k}
+	: $cach2->{$k} = undef
+	, $self->{ESC}{$k} = 1 )[0] 
+SUBCODE
+
+$AD{subcall_fetch} = <<'SUBCODE';
+	($_ eq $cach ? ${$_->{$k}} 
+	 : $_->{$k})
+SUBCODE
+$AD{subcall_fetch2} = <<'SUBCODE';
+	!$cach2
+	? $_ eq $cach ? ${$_->{$k}} 
+	 : $_->{$k}
+	: ( CDUP 
+	? $self->{REGX}[0]{$k}
+	: ${ $cach2->{$k}
+	 = \$_->{$k} } ) 
+SUBCODE
+$AD{subcall_fetch0} = <<'SUBCODE';
+	!$cach2
+	? undef
+	: ( CDUP 
+	? $self->{REGX}[0]{$k}
+	: $cach2->{$k}
+	 = undef )
+SUBCODE
+
 $AD{fetch} = <<'SUBCODE';
 sub fetch { 
 	my $self = $_[0];
@@ -249,41 +291,24 @@ sub fetch {
 			if ( CHIT 
 			and $self->{CHIT2}
 			) {
-
 				CDUP
 				and ref $self->{REGX}[0] eq 'HASH'
 				|| unshift @{$self->{REGX}}, {};
 
 				return 
 				 exists $self->{ESC2}{$_}
-				? ( !$cach2
-				? undef
-				: ( CDUP 
-				? $self->{REGX}[0]{$k}
-				: $cach2->{$k} = undef
-				, $self->{ESC}{$k} = 1 )[0] )
+				? subcall_match0()
 				: $type eq 'ex'
 				? 1
 				: exists $self->{DYN2}{$_} && !$esc 
 				? $type eq 'sr' 
-				? \$self->{REGX2}{ $_}($k) 
-				: $self->{REGX2}{ $_}($k)
+				? \(subcall_match2()->($k)) 
+				: subcall_match2()->($k)
 				: $type eq 'sr' 
-				? \( !$cach2
-				? $self->{REGX2}{ $_}
-				: ( CDUP 
-				? $self->{REGX}[0]{$k}
-				: ${ $cach2->{$k}
-				 = \$self->{REGX2}{ $_}} ) )
-				: ( !$cach2
-				? $self->{REGX2}{ $_}
-				: ( CDUP 
-				? $self->{REGX}[0]{$k}
-				: ${ $cach2->{$k}
-				 = \$self->{REGX2}{ $_} } ) );
+				? \(subcall_match2())
+				: subcall_match2();
 			}
 			else {
-
 				return 
 				 exists $self->{ESC2}{$_}
 				? undef
@@ -304,43 +329,24 @@ sub fetch {
 			if ( CHIT 
 			and $self->{CHIT2}
 			) {
-
 				CDUP
 				and ref $self->{REGX}[0] eq 'HASH'
 				|| unshift @{$self->{REGX}}, {};
 
 				return 
 				 exists $self->{ESC}{$k}
-				? ( !$cach2
-				? undef
-				: ( CDUP 
-				? $self->{REGX}[0]{$k}
-				: $cach2->{$k}
-				 = undef ) ) 
+				? subcall_fetch0() 
 				: $type eq 'ex'
 				? 1
 				: exists $self->{DYN}{$k} && !$esc 
 				? $type eq 'sr' 
-				? \$_->{$k}($k) 
-				: $_->{$k}($k) 
+				? \(subcall_fetch2()->($k)) 
+				: subcall_fetch2()->($k) 
 				: $type eq 'sr' 
-				? \( !$cach2
-				? $_ eq $cach ? ${$_->{$k}} 
-				 : $_->{$k}
-				: ( CDUP 
-				? $self->{REGX}[0]{$k}
-				: ${ $cach2->{$k}
-				 = \$_->{$k} } ) )
-				: ( !$cach2
-				? $_ eq $cach ? ${$_->{$k}} 
-				 : $_->{$k}
-				: ( CDUP 
-				? $self->{REGX}[0]{$k}
-				: ${ $cach2->{$k}
-				 = \$_->{$k} } ) ); 
+				? \(subcall_fetch2()) 
+				: subcall_fetch2(); 
 			}
 			else {	
-
 				return 
 				 exists $self->{ESC}{$k}
 				? undef
@@ -348,13 +354,11 @@ sub fetch {
 				? 1
 				: exists $self->{DYN}{$k} && !$esc 
 				? $type eq 'sr' 
-				? \$_->{$k}($k) 
-				: $_->{$k}($k) 
+				? \(subcall_fetch()->($k)) 
+				: subcall_fetch()->($k) 
 				: $type eq 'sr' 
-				? \($_ eq $cach ? ${$_->{$k}} 
-				 : $_->{$k})
-				: ($_ eq $cach ? ${$_->{$k}} 
-				 : $_->{$k});
+				? \subcall_fetch()
+				: subcall_fetch();
 
 			}
 		} 
@@ -893,9 +897,13 @@ SUBCODE
 
 $AD{precompile} = <<'SUBCODE';
 sub precompile {
-	eval( $AD{$_}), !$@ || carp( "Compilation error: "
-	. "$@ in code: $AD{$_}")
-	foreach keys %AD;
+	foreach (keys %AD) {
+		next 
+		if $_ =~ $qr_fragment; 
+		 $AD{$_} =~ s/$qr_fragment/($AD{$1})/g;
+		eval $AD{$_};
+		!$@ or carp( "Compilation error: $@ in code: $AD{$_}")
+	}
 
 	return 1
 }
@@ -909,8 +917,12 @@ sub is_precompiled { 1 }
 SUBCODE
 
 sub AUTOLOAD {
-	eval( $AD{$Tie::REHash::AUTOLOAD}
-	 ||( $Tie::REHash::AUTOLOAD =~ /::(\w+)$/, $AD{$1} ) );
+	my $code = \( $AD{$Tie::REHash::AUTOLOAD}
+	 || scalar( $Tie::REHash::AUTOLOAD =~ /::(\w+)$/, $AD{$1} ) );
+	eval{ $$code =~ s/$qr_fragment/($AD{$1})/g; }; 
+	eval $$code; 
+	!$@ or die("$@ evaluating $$code");
+
 	goto &$Tie::REHash::AUTOLOAD 
 	if defined &$Tie::REHash::AUTOLOAD;
 }
@@ -1235,7 +1247,7 @@ Caching pays off only if repeated fetches of same key happen often enough; other
 
 	use Tie::REHash do_cache => 1;
 
-Dynamic values are never cached, since they are dynamic by nature and may change upon repeated fetch.
+Performance of repeated fetching of dynamic value also improves with caching, but dynamic value subroutine is called every time, i.e. dynamic value may change upon repeated fetch.
 
 Use of caching may dramatically improve performance of repeated fetches. For example, hash with 100 simple regexp keys may get up to 30 times boost in speed of repeated fetches. Also note that cache do not copy rehash values, so the memory footprint do not escalate as a result of caching.
 
