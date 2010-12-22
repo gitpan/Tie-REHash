@@ -13,4 +13,7 @@ Revision history for Perl extension Tie::REHash.
 	- the yet another "next-day" version. Again, no change in API. Working around perl bugs that cause installation problems revealed by cpantesters on perl 5.10.1 and pre-5.8.3 perls. Documentation update (in particular, BUGS section). 
 
 1.03  17 December 2010
-	- No changes except minor edits of perl bug warnings. Contrary to the information of rt.perl.org ticket 79178, it was discovered (from cpantesters reports for 1.02) that this perl bug is not confined to specified perl (core) versions range and even not strictly related to perl version - it may or may not affect different builds of same version of perl (probably it is up to differences in perl build options). 
+	- No changes except minor edits of perl bug warnings. Contrary to the information of rt.perl.org ticket 79178, it was discovered (from cpantesters reports for 1.02) that this perl bug is not confined to specified perl (core) versions range and even not strictly related to perl version - it may or may not affect different builds of same version of perl (probably it is up to differences in perl build options).  
+
+1.04  18 December 2010
+	- Performance improvement - repeated fetches of dynamic value can now be cached (still recalculated for each fetch, as required).

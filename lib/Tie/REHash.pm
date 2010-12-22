@@ -3,7 +3,7 @@ package Tie::REHash;
 use 5.006; 
 
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.03_01'; 
+$Tie::REHash::VERSION = '1.04'; 
 
 no warnings; 
 
@@ -902,7 +902,7 @@ sub precompile {
 		if $_ =~ $qr_fragment; 
 		 $AD{$_} =~ s/$qr_fragment/($AD{$1})/g;
 		eval $AD{$_};
-		!$@ or carp( "Compilation error: $@ in code: $AD{$_}")
+		!$@ or croak( "Compilation error: $@ in code: $AD{$_}")
 	}
 
 	return 1
@@ -1243,13 +1243,13 @@ The approximate rule is: if number of regexp keys in the hash is equal or higher
 
 If do_cache_hit() attribute is set true, string key hits (except dynamic values) are cached - repeated same key hits are fast. False do_cache_hit() turns caching of hits off. The default is true do_cache_hit(1).
 
-Caching pays off only if repeated fetches of same key happen often enough; otherwise caching just adds overhead without actually using the cache very much. For that reason, caching is off by default and should be turned on manually only for those rehashes that need it. Alternatively, caching can be turned on by default for all hashes upon Tie::REHash loading:
+Caching pays off only if repeated fetches of same key happen often enough; otherwise caching just adds overhead without actually using the cache very much. Moreover, caching is useless if rehash has no regexp keys (and the more regexp keys are in the rehash, the more efficiency benefits caching can bring). For that reason, caching is off by default and should be turned on manually only for those rehashes that need it. Alternatively, caching can be turned on by default for all rehashes upon Tie::REHash loading:
 
 	use Tie::REHash do_cache => 1;
 
-Performance of repeated fetching of dynamic value also improves with caching, but dynamic value subroutine is called every time, i.e. dynamic value may change upon repeated fetch.
+Performance of repeated fetching of dynamic value also improves with caching (same way as that of plain value), but dynamic value subroutine is still called every time, i.e. dynamic value may change upon repeated fetch.
 
-Use of caching may dramatically improve performance of repeated fetches. For example, hash with 100 simple regexp keys may get up to 30 times boost in speed of repeated fetches. Also note that cache do not copy rehash values, so the memory footprint do not escalate as a result of caching.
+Use of caching may dramatically improve performance of repeated fetches. For example, hash with 100 simple regexp keys may get up to 30 times boost in speed of repeated fetches. Also note that caching do not copy rehash values, so the memory footprint do not escalate as a result of caching.
 
 To empty cache of specific hash, call tied(%rehash)->flush_cache().
 
