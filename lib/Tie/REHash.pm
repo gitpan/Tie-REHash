@@ -3,7 +3,7 @@ package Tie::REHash;
 use 5.006; 
 
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.04'; 
+$Tie::REHash::VERSION = '1.04_01'; 
 
 no warnings; 
 
@@ -977,13 +977,17 @@ Tie::REHash - the tie()d implementation of RegExp Hash (REHash) that allows usin
 
 Tie::REHash is a tie()d implementation of hash that allows using regexp "keys" along with plain keys.
 
-Storing regexp key in a hash tie()d to Tie::REHash is equivalent to storing set of string keys that regexp matches, called "matching keys". Matching key (as well as regexp key that created it) exists(). Regexp key and all its matching keys share same single value. If we take dictionary view of a hash (in some programming languages they call "dictionary" what we call "hash"), then Tie::REHash is the implementation of hash that effectively allows defining arbitrary sets of synonymous (aliased) keys by using regexp keys for that.
+Storing regexp key in a hash tie()d to Tie::REHash is equivalent to storing set of (plain) string keys that regexp matches, called "matching keys". Matching key, as well as regexp key that created it, exists(). Regexp key and all its matching keys share same value. If we take dictionary view of a hash, then Tie::REHash implementation of hash allows using regexp keys to effectively define (patterned) sets of synonymous (aliased) keys.
 
-To make matters worse, Tie::REHash also supports notion of "dynamic value".
+To make matters worse, Tie::REHash also supports notion of "dynamic value" (this extention can safely be ignored, if it is not necessary).
 
-As a result of these enhancements, Tie::REHash allows, for example, creating hash with infinite sets of key/value pairs. 
+As a result of these enhancements, Tie::REHash allows, for example, creating hash with infinite sets of key/value pairs.
 
-In this documentation name "REHash" is often used as short reference to Tie::REHash class or object, while lowercased "rehash" is used to refer to hash tie()d to Tie::REHash, the regexp keys hash, to distinguish it from standard hash (however, since rehash behaves almost like standard hash, rehash may also be referred to as simply "hash" in the standard hash context).
+In this documentation name "REHash" is often used as short reference to Tie::REHash class or object, while lowercased "rehash" term is used to refer to hash tie()d to Tie::REHash, i.e. the regexp keys hash, to distinguish it from standard hash (however, since rehash behaves almost like standard hash, rehash may also be referred to as simply "hash" in the standard hash context).
+
+=head1 How to read this documentation
+
+First read SYNOPSIS. Then you can read only those sections that concern your usage. Initially, you can read only code examples, skipping text, and read text only if necessary (as a last resort). Thus, you can easily avoid verbosity of this documentation, unless verbosity is what you need. 
 
 =head1 Rehash construction
 
@@ -1096,6 +1100,8 @@ Regexps that are equivalent in terms of what they match, but written differently
 	$rehash{automobile}         eq 'not a luxury';              # true
 
 =head2 Dynamic Values
+
+Dynamic values feature of rehash can safely be ignored (skipping this section documentation) entirely, if this feature is not used.
 
 Dynamic value of the key is simply reference to subroutine (called "dynamic value subroutine") that is called when key's value is fetched, with accessed key passed as argument; the value returned by that subroutine (called "calculated value") is then returned as key's value.
 
@@ -1241,7 +1247,7 @@ If do_cache() attribute is true, additional attributes do_cache_hit() and do_cac
 
 The approximate rule is: if number of regexp keys in the hash is equal or higher than the value of do_cache_miss() attribute (i.e. the miss is costly enough), the caching of misses is on - repeated same key misses are fast. False do_cache_miss() turns caching of misses off. The default is true do_cache_miss(1).
 
-If do_cache_hit() attribute is set true, string key hits (except dynamic values) are cached - repeated same key hits are fast. False do_cache_hit() turns caching of hits off. The default is true do_cache_hit(1).
+If do_cache_hit() attribute is set true, string key hits are cached - repeated same key hits are fast. False do_cache_hit() turns caching of hits off. The default is true do_cache_hit(1).
 
 Caching pays off only if repeated fetches of same key happen often enough; otherwise caching just adds overhead without actually using the cache very much. Moreover, caching is useless if rehash has no regexp keys (and the more regexp keys are in the rehash, the more efficiency benefits caching can bring). For that reason, caching is off by default and should be turned on manually only for those rehashes that need it. Alternatively, caching can be turned on by default for all rehashes upon Tie::REHash loading:
 

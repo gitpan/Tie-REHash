@@ -4,8 +4,11 @@
 
 use strict;
 
-use Test::More tests => 112;
+use Test::More tests => 113;
 BEGIN { $^W = 0; } 
+
+eval { my $foo; if ( %$foo) {} };
+ok(!$@);
 
 {
 package Tie::REHash::StringrefBug;

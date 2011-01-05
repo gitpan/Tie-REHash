@@ -1,4 +1,4 @@
-Tie-REHash version 1.04
+Tie-REHash
 ============================
 
 Tie::REHash is a tie()d implementation of hybrid hash that allows using regexp "keys" along with plain keys (plus more).
