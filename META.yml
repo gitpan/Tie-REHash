@@ -4,7 +4,7 @@ author:
   - 'Alexandr Kononoff (F<parsels@mail.ru>)'
 configure_requires:
   Module::Build: 0.36
-generated_by: 'Module::Build version 0.3603'
+generated_by: 'Module::Build version 0.3601'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -13,11 +13,11 @@ name: Tie-REHash
 provides:
   Tie::REHash:
     file: lib/Tie/REHash.pm
-    version: 1.04_01
+    version: 1.04_02
   Tie::REHash::StringrefBug:
     file: lib/Tie/REHash.pm
 requires:
   perl: 5.006
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.04_01
+version: 1.04_02

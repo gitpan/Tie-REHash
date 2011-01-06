@@ -7,7 +7,7 @@ use strict;
 use Test::More tests => 113;
 BEGIN { $^W = 0; } 
 
-eval { my $foo; if ( %$foo) {} };
+eval { no strict; my $foo; if ( %$foo) {} };
 ok(!$@);
 
 {

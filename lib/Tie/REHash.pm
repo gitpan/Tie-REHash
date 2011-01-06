@@ -3,7 +3,7 @@ package Tie::REHash;
 use 5.006; 
 
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.04_01'; 
+$Tie::REHash::VERSION = '1.04_02'; 
 
 no warnings; 
 
@@ -987,7 +987,9 @@ In this documentation name "REHash" is often used as short reference to Tie::REH
 
 =head1 How to read this documentation
 
-First read SYNOPSIS. Then you can read only those sections that concern your usage. Initially, you can read only code examples, skipping text, and read text only if necessary (as a last resort). Thus, you can easily avoid verbosity of this documentation, unless verbosity is what you need. 
+This documentation covers many additional features (e.g. dynamic values, performnce tuning, serialization, etc.) that you do NOT need to learn for using Tie::REHash in most usual case. Thus, this documentation can be read selectively, safely skipping most of it, as follows:
+
+First read SYNOPSIS. Then you may read only those sections that concern your usage. This way you can easily avoid learning features that you do not need. Initially, you may read only code examples, skipping text, and read text only if necessary (as a last resort). Later alows to avoid documentation verbosity, unless verbosity is what you need. 
 
 =head1 Rehash construction
 
@@ -1101,7 +1103,7 @@ Regexps that are equivalent in terms of what they match, but written differently
 
 =head2 Dynamic Values
 
-Dynamic values feature of rehash can safely be ignored (skipping this section documentation) entirely, if this feature is not used.
+Dynamic values feature of rehash can safely be ignored (skipping this documentation section) entirely, if you do not plan to use it.
 
 Dynamic value of the key is simply reference to subroutine (called "dynamic value subroutine") that is called when key's value is fetched, with accessed key passed as argument; the value returned by that subroutine (called "calculated value") is then returned as key's value.
 
