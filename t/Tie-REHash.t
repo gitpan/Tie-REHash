@@ -7,9 +7,6 @@ use strict;
 use Test::More tests => 113;
 BEGIN { $^W = 0; } 
 
-eval { no strict; my $foo; if ( %$foo) {} };
-ok(!$@);
-
 {
 package Tie::REHash::StringrefBug;
 sub TIEHASH { bless {}, $_[0] }
@@ -21,12 +18,12 @@ sub TIEHASH { bless {}, $_[0] }
 sub SCALAR { 1 }
 }
 tie my %detector, 'Tie::REHash::StringrefBug';
-( $detector{\'foo'} = 1 ) eq 'SCALAR'
-and $detector{\'foo'} eq 'SCALAR'
+ok(( $detector{\'foo'} = 1 ) eq 'SCALAR'
+and $detector{\'foo'} eq 'SCALAR');
 #$] >= 5.012 
-or diag('
-BUG WARNING! Due to bug (rt.perl.org ticket 79178) in your instance of perl, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"} (or in one statement: $rehash{$key = \"foo"}), or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.
-'); 
+#or 0); diag('
+#BUG WARNING! Due to bug (rt.perl.org ticket 79178) in your instance of perl, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"} (or in one statement: $rehash{$key = \"foo"}), or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.
+#'); 
 
 tie my %detector2, 'Tie::REHash::sub_SCALAR';
 scalar(%detector2) == 1

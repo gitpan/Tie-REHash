@@ -3,7 +3,7 @@ package Tie::REHash;
 use 5.006; 
 
 use strict qw[vars subs];
-$Tie::REHash::VERSION = '1.04_02'; 
+$Tie::REHash::VERSION = '1.04_03'; 
 
 no warnings; 
 
@@ -1051,7 +1051,7 @@ Storing regexp key in rehash effectively stores a set of string keys that regexp
 	exists $rehash{automobile};                         # true
 	exists $rehash{qr{car|automobile}};                 # true
 
-Keys of rehash are divided into two main classes: string keys and regexp keys. String keys are in turn divided into matching keys and plain keys. Keys of different classes, however, behave identically, except matching keys are not returned by keys(), values(), each() and when evaluating hash in list context (see corresponding section below). 
+Thus, keys of rehash are divided into two main classes: string keys and regexp keys. Storing regexp key creates coresponding string keys - matching keys. So, string keys are in turn can be divided into matching keys and plain keys. Keys of different classes, however, behave identically, except matching keys are not returned by keys(), values(), each() and when evaluating hash in list context (see corresponding section below). 
 
 Value of specific matching key created by one regexp key is overridden by stored later either same plain key or other regexp key that also matches that same key:
 
@@ -1064,7 +1064,7 @@ Value of specific matching key created by one regexp key is overridden by stored
 	exists $rehash{qr{car|automobile}}                         # true
 	and    $rehash{qr{car|automobile}} eq 'vehicle on wheels'; # true
 
-Matching key do exists() and can be delete()d, but it is not returned by keys() and each() (see below); later is the only difference between matching key and plain key. 
+Each individual matching key exists() and can be delete()d, but it is not returned by keys() and each() (see below); later is the only difference between matching key and plain key. 
 
 Accordingly, in case of rehash each() key returned by keys() exists(), but, unlike in case of standard hash, the reverse is not true - matching key exists(), but is not returned by keys() and each(). (For more details refer to section "keys(), values(), each() and List Context" below.)
 
@@ -1103,7 +1103,7 @@ Regexps that are equivalent in terms of what they match, but written differently
 
 =head2 Dynamic Values
 
-Dynamic values feature of rehash can safely be ignored (skipping this documentation section) entirely, if you do not plan to use it.
+Dynamic values feature of rehash can safely be ignored skipping this documentation section entirely, if you do not plan to use it.
 
 Dynamic value of the key is simply reference to subroutine (called "dynamic value subroutine") that is called when key's value is fetched, with accessed key passed as argument; the value returned by that subroutine (called "calculated value") is then returned as key's value.
 
@@ -1118,7 +1118,7 @@ Both plain and regexp/matching keys may have dynamic values. In case of regexp/m
 After being stored, dynamic value subroutine is revealed instead of its calculated values only in the following cases: 
 
 1) reference to dynamic value subroutine is returned by values() and each(), together with corresponding escaped key (returned by keys() in case of values()); 
-2) reference to dynamic value subroutine is fetched as value of escaped key (i.e. both key and value are same that were stored - see Escaped Keys). 
+2) reference to dynamic value subroutine is fetched using escaped key (i.e. both key and value are same that were stored - see Escaped Keys). 
 
 In all other cases dynamic value is represented by its calculated value and indistinguishable from static value (except calculated value may change). 
 
@@ -1241,7 +1241,7 @@ Note also that mere use()/require()ing of Tie::REHash is relatively inexpensive.
 
 =head2 Caching 
 
-Rehash has built-in cache to improve performance of repeated same key hits and misses. The caching is off by default - to enable it for specific hash set do_cache() attribute true:
+Rehash has built-in cache to improve performance of repeated same key hits and misses. The caching is off by default - to enable it for specific rehash set do_cache() attribute true:
 
 	tied(%rehash)->do_cache(1) 
 
@@ -1263,7 +1263,7 @@ To empty cache of specific hash, call tied(%rehash)->flush_cache().
 
 =head1 Serialization
 
-The generic rehash serialization/deserialization sequence that works for most serializers is as follows:
+The generic rehash serialization/deserialization sequence that works for most serializers is as follows (where serialize() and deserialize() stand for corresponding routines provided by a serializer module):
 
 	$data = serialize(tied(%rehash)->freeze);
 	tie %clone, Tie::REHash->unfreeze(deserialize($data));
@@ -1336,16 +1336,16 @@ However, if called in scalar context with true argument, the return value is ref
 
 =head2 freeze() (aliase: storable())
 
-	$data   = tied(%rehash)->freeze();
-	$data   = tied(%rehash)->freeze('data');
+	$data   = tied(%rehash)->freeze();       # same as freeze('data')
+	$data   = tied(%rehash)->freeze('data'); # same as freeze()
 	$object = tied(%rehash)->freeze('clone');
 	$object = tied(%rehash)->freeze('itself');
 
 The freeze() method always returns serializable (frozen) data structure that is a "snapshot" of Tie::REHash object instance that freeze() was called on. The returned snapshot data structure can then be serialized using some serializer. The type of data structure depends on argument, as follows:
 
-'data'   - unblessed data structure copied from Tie::REHash instance (later is not altered);
+'data'   - (default assumed if not argument is specified) unblessed data structure copied from Tie::REHash instance (later is not altered);
 'clone'  - blessed copy of Tie::REHash instance (later is not altered);
-'itself' - the very Tie::REHash instance that freeze() was called on is converted into serializable, but non-operational (!), state and returned.
+'itself' - the very Tie::REHash instance that freeze() was called on is converted into serializable, but non-operational (so rehash becomes non-operational!) state and returned.
 
 If no or some other argument is specified, freeze() defaults to 'data' mode. With both 'data' and 'clone' arguments freeze() returns shallow copies that share most of its data with Tie::REHash instance - those data structures should be used in read-only mode.
 
