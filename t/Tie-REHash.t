@@ -4,7 +4,7 @@
 
 use strict;
 
-use Test::More tests => 113;
+use Test::More tests => 134;
 BEGIN { $^W = 0; } 
 
 {
@@ -18,12 +18,12 @@ sub TIEHASH { bless {}, $_[0] }
 sub SCALAR { 1 }
 }
 tie my %detector, 'Tie::REHash::StringrefBug';
-ok(( $detector{\'foo'} = 1 ) eq 'SCALAR'
-and $detector{\'foo'} eq 'SCALAR');
+( $detector{\'foo'} = 1 ) eq 'SCALAR'
+and $detector{\'foo'} eq 'SCALAR'
 #$] >= 5.012 
-#or 0); diag('
-#BUG WARNING! Due to bug (rt.perl.org ticket 79178) in your instance of perl, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"} (or in one statement: $rehash{$key = \"foo"}), or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.
-#'); 
+or diag('
+BUG WARNING! Due to bug (rt.perl.org ticket 79178) in your instance of perl, storing/fetching to/from the RegexpKeys hash should avoid escaped literal keys (as well as stringified scalarref keys), like $hash{\"foo"} (or in one statement: $rehash{$key = \"foo"}), or fatal error will result. The workaround: $key = \"foo"; $hash{$key}.
+'); 
 
 tie my %detector2, 'Tie::REHash::sub_SCALAR';
 scalar(%detector2) == 1
@@ -186,13 +186,65 @@ ok(!%hash);
 ok(!keys %hash) if (tied %hash)->remove_dups;
 
 my $rcar = \'car'; 
-$hash{$rcar} = sub{ "$_[0] is not a luxury"};
+$hash{$rcar} = sub{ "$_[1] is not a luxury"};
 is( $hash{ 'car'}, "car is not a luxury"); 
 
-$hash{\qr{car|automobile}} = sub { "$_[0] is a vehicle on wheels"}; 
+$hash{\qr{car|automobile}} = sub { "$_[1] is a vehicle on wheels"}; 
 is( $hash{car}, "car is a vehicle on wheels"); 
 
 $hash{\qr{(automobile|car)}} = sub { "$1 is a vehicle on wheels"}; 
 is( $hash{automobile}, "automobile is a vehicle on wheels"); 
+
+# Finally, exact test of SYNOPSYS from documentation (UPDATE IT as soon as SYNOPSYS is changed)...
+
+no strict qw(refs);
+
+#use Tie::REHash;
+tie my %rehash, 'Tie::REHash';
+#... %rehash is now almost standard hash, except for the following...
+
+# Regexp keys:...
+
+# basics that you might expect...
+$rehash{qr{car|auto|automobile}} = 'vehicle on wheels'; # note qr{}
+is($rehash{qr{car|auto|automobile}}, 'vehicle on wheels'); # true
+is($rehash{car} , 'vehicle on wheels'); # true
+is($rehash{auto} , 'vehicle on wheels'); # true
+is($rehash{automobile} , 'vehicle on wheels'); # true
+ok(exists $rehash{car}); # true
+ok(exists $rehash{auto}); # true
+ok(exists $rehash{automobile}); # true
+ok(exists $rehash{qr{car|auto|automobile}}); # true
+
+#... and a bit more advanced manipulations:
+
+# then deleting one of matching keys...
+delete $rehash{car}; # results in...
+ok(not exists $rehash{car}); # true
+ok(exists $rehash{auto}); # true
+ok(exists $rehash{automobile}); # true
+ok(exists $rehash{qr{car|auto|automobile}}); # true
+
+# then altering value of another matching key...
+$rehash{auto} = 'automatic';
+is($rehash{auto}, 'automatic'); # true
+is($rehash{car}, undef); # true (deleted above)
+is($rehash{automobile}, 'vehicle on wheels'); # true
+is($rehash{qr{car|auto|automobile}}, 'vehicle on wheels'); # true
+
+# then overriding two matching keys at once...
+$rehash{qr{car|automobile}} = 'not a luxury';
+is($rehash{qr{car|automobile}}, 'not a luxury'); # true
+is($rehash{car}, 'not a luxury'); # true
+is($rehash{automobile}, 'not a luxury'); # true
+is($rehash{auto}, 'automatic'); # still true
+is($rehash{qr{car|auto|automobile}}, 'vehicle on wheels'); # still true
+
+#... and so on. 
+
+# Dynamic (calculated) values:...
+
+$hash{\qr{(car|automobile)}} = sub { "$_[1] is a vehicle on wheels" }; 
+is($hash{car}, "car is a vehicle on wheels"); # true
 
 1;

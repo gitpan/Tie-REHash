@@ -16,4 +16,11 @@ Revision history for Perl extension Tie::REHash.
 	- No changes except minor edits of perl bug warnings. Contrary to the information of rt.perl.org ticket 79178, it was discovered (from cpantesters reports for 1.02) that this perl bug is not confined to specified perl (core) versions range and even not strictly related to perl version - it may or may not affect different builds of same version of perl (probably it is up to differences in perl build options).  
 
 1.04  18 December 2010
-	- Performance improvement - repeated fetches of dynamic value can now be cached (still recalculated for each fetch, as required).
+	- Performance improvement - repeated fetches of dynamic value can now be cached (still recalculated for each fetch, as required).  
+
+1.05  3 December 2012
+	- Dynamic value accessor API has been changed in backward-incompatible way: first argument is now tied() object, second - accessed key (was first argument earlier, so if you use dynamic values, shift() arguments in your accessors when upgrading), and rest of arguments are the rest of explicit fetch()'s arguments (if any) propagated to accessor. This change makes accessor to look like method of tied() object and allows modifying accessor's default behavior with extra arguments when calling fetch() explicitly.
+	- Fixed bug in documentation that promised $1, $2, $3, etc. of the match to be ALWAYS available to dynamic value accessor - they are not available in case caching is used (documentation suggests workaround).
+	- Specific instance of cache hash can now be specified as (true) value of do_cache() attribute
+	- Test suit is extended to explicitly test new code from documentation's SYNOPSIS
+	- Second edition of documentation
